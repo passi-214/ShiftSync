@@ -23,6 +23,7 @@ export const eventLocation = (s: Shift, address: string) => `${s.venueLabel}, ${
 
 export function eventDescription(s: Shift, locale: Locale): string {
   const lines = [...s.tags.map((t) => translate(locale, `tag.${t}`)), ...s.notes]
+  if (s.listedAs) lines.push(translate(locale, 'shift.listedAs', { name: s.listedAs }))
   if (s.startIsEstimate) lines.push(translate(locale, 'export.estimatedTimes'))
   else if (s.endIsEstimate) lines.push(translate(locale, 'export.estimatedEnd'))
   return lines.join('\n')

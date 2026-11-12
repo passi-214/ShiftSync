@@ -7,6 +7,6 @@ export default defineEventHandler(async (event): Promise<PreviewResponse> => {
   const id = getRouterParam(event, 'id')!
   const shifts = getContainer().shifts
   const stored = await shifts.load(id)
-  if (!stored) apiError(404, 'export_expired')
+  if (!stored) apiError('export_expired')
   return { ...shifts.view(id, stored), links: linksFor(id) }
 })

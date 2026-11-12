@@ -9,7 +9,7 @@ import { apiError, localeFrom } from '../../../utils/http'
 export default defineEventHandler(async (event) => {
   const c = getContainer()
   const result = await c.shifts.load(getRouterParam(event, 'id')!)
-  if (!result) apiError(404, 'export_expired')
+  if (!result) apiError('export_expired')
 
   const file = exporters.ics.export(result.shifts, c.exportContext(result.person, localeFrom(event)))
   const inline = getQuery(event).inline === '1'

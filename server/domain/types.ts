@@ -14,8 +14,8 @@ export type RoleId =
 export type ShiftTag = 'break_gastro' | 'if_intermission'
 
 export type ApiErrorCode =
-  | 'pdf_missing' | 'pdf_too_large' | 'not_pdf' | 'name_invalid'
-  | 'not_roster' | 'read_failed' | 'export_expired'
+  | 'file_missing' | 'file_too_large' | 'unsupported_file' | 'name_invalid'
+  | 'not_roster' | 'read_failed' | 'roster_expired' | 'export_expired'
 
 /** One person as listed in the PDF. */
 export interface RosterPerson {
@@ -59,6 +59,38 @@ export interface Shift {
   /** Raw text from the roster (German, shown as written). */
   notes: string[]
   tags: ShiftTag[]
+  /** Set when the shift was found under a different spelling the user confirmed (possible typo in the roster). */
+  listedAs: string | null
+}
+
+/** A name as written in the roster, with how often it occurs. */
+export interface NameStat { name: string; occurrences: number }
+
+/** Entries listed under a spelling that resembles the searched name. */
+export interface SimilarName extends NameStat { included: boolean }
+
+/** A rarely used spelling that looks like a typo of a more common one. */
+export interface TypoSuspect {
+  name: string
+  occurrences: number
+  probablyMeans: string
+  probablyMeansOccurrences: number
+}
+
+/** Returned after uploading a roster; the file itself is parsed once and kept server-side. */
+export interface RosterInfo {
+  id: string
+  names: number
+  typoSuspects: TypoSuspect[]
+}
+
+export interface PreviewRequest {
+  rosterId: string
+  name: string
+  /** Typo check: also suggest similar spellings found in the roster. */
+  typoCheck?: boolean
+  /** Spellings (exactly as listed in `similar`) the user confirmed as their own. */
+  include?: string[]
 }
 
 export interface PreviewResponse {
@@ -66,8 +98,8 @@ export interface PreviewResponse {
   person: string
   period: { from: string; to: string } | null
   shifts: Shift[]
-  /** Only filled when nothing matched, to help the user fix a typo. */
-  availableNames: string[]
+  /** Similar spellings in the roster (typo check, or "did you mean" when nothing matched). */
+  similar: SimilarName[]
   links: {
     ics: string
     /** Set only when Google OAuth is configured; otherwise the UI falls back to the .ics file. */

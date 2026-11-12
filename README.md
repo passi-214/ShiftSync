@@ -1,6 +1,6 @@
 # ShiftSync
 
-Upload the monthly Foyermanagement roster PDF + your name → preview your shifts → add them to Apple Calendar / Google Calendar or download the `.ics` file. German (default) and English UI.
+Upload the monthly Foyermanagement roster (PDF or Word .docx) + your name → preview your shifts → add them to Apple Calendar / Google Calendar or download the `.ics` file. German (default) and English UI.
 
 The backend does all the logic; the frontend uploads, renders JSON and links to downloads.
 
@@ -13,12 +13,31 @@ npm test         # unit tests (no Nuxt boot needed)
 ## Request flow
 
 ```
-POST /api/shifts/preview (pdf + name)
-  PdfTextExtractor -> ScheduleParser -> PersonMatcher -> EndTimeEstimator -> Shift[] (stored 7 days under an id)
-GET  /api/exports/:id                 reopen a result
+POST /api/rosters (file: PDF or .docx)       parse ONCE, keep server-side -> { id, names, typoSuspects }
+GET  /api/rosters/:id/names?q=pas            ranked name suggestions while typing
+POST /api/shifts/preview {rosterId, name, typoCheck?, include?}
+       RosterService -> PersonMatcher -> EndTimeEstimator -> Shift[] (+ similar spellings), stored 7 days under an id
+GET  /api/exports/:id                        reopen a result
 GET  /api/exports/:id/ics?lang=de|en[&inline=1]
-GET  /api/google/start?id=…           (only if Google OAuth is configured) -> Google -> /api/google/callback
+GET  /api/google/start?id=…                  (only if Google OAuth is configured) -> Google -> /api/google/callback
 ```
+
+## Input formats
+
+PDF and Word (`.docx`). The format is detected from the file's bytes, not its name. Legacy `.doc` is rejected with a hint to save as `.docx`. Add another format (`.odt`, `.txt`, …) by implementing `DocumentTextExtractor` and registering it in `MultiFormatExtractor` (`modules/schedule/documentTextExtractor.ts`). The parser is line-break agnostic, so Word paragraphs, tables and split text runs all work.
+
+## Name suggestions
+
+After the file is uploaded, typing in the name field shows suggestions from the names in that file: prefix match on first or last name (`pas`, `nowa`), case/diacritics-insensitive, and typo tolerant from 4 letters on (`pacs` → Pascal). Names that were glued together by a lost comma in the file are split using the clean names seen elsewhere. Ranking happens on the server; the combobox is keyboard accessible (↑ ↓ Enter Esc).
+
+## Typo check (optional checkbox, on by default)
+
+Two things, both in `modules/schedule/nameIndex.ts`:
+
+- **Possible typos in the roster:** rare spellings that look like a more common name (e.g. "Pacsal Nowarra" 1× vs "Pascal Nowarra" 13×). Listed in a collapsible panel so the roster can be corrected at the source. A swapped letter pair counts as one edit.
+- **Similar spellings for your name:** entries under a look-alike name are *suggested, never added silently*. Tick the ones that are yours and they join your shifts, marked "Listed as …", and the calendar entry says so too. If nothing matches your typed name, the same list becomes "Did you mean …".
+
+Already tolerated without the checkbox: first-name variants (Lilli/Liliana), diacritics, one-letter last-name differences (Haberland/Haberlandt). Different people are kept apart (a test covers Lukas/Dieter Huber, Sophie Unseld/Hunold, …). Spellings that tie in frequency (e.g. Lilli/Liliana Deimann 6×/6×) are not flagged, since there is no way to tell which is right.
 
 ## Times
 
@@ -48,7 +67,8 @@ locales/         de, en, translate()
 server/
   domain/        types, venues (+ typical durations), time helpers
   modules/
-    schedule/    pdfTextExtractor (port) · scheduleParser · personMatcher
+    schedule/    documentTextExtractor (port: PDF + docx) · scheduleParser · personMatcher · nameIndex
+    roster/      rosterService (parse once, suggestions, typo suspects)
     estimation/  endTimeEstimator, one strategy per role
     calendar/    CalendarExporter (port) · icsExporter · googleCalendar
     shifts/      shiftService (orchestration)
@@ -67,10 +87,12 @@ tests/
 | Different end/start rule for a role | `STRATEGIES` in `endTimeEstimator.ts` |
 | New venue or role | `domain/venues.ts` (+ `role.*` keys in `locales/`) |
 | New export format | implement `CalendarExporter`, register in `calendar/index.ts` |
-| Different PDF layout | marker regexes at the top of `scheduleParser.ts` |
+| Another input format | `MultiFormatExtractor` in `documentTextExtractor.ts` |
+| Typo sensitivity | `tolerance()` / `looksLikeSameName()` in `nameIndex.ts` |
+| Different roster layout | marker regexes at the top of `scheduleParser.ts` |
 | Redis/KV instead of files for results | change the `sessions` storage driver in `nuxt.config.ts` |
 
 ## Notes
 
-- Uploaded PDFs are never stored; only the extracted shifts are kept for the export link (7 days).
+- The uploaded file itself is never stored. What is kept for 7 days (`sessionTtlHours`): the parsed roster (dates, venues, names), so suggestions and re-checks work, plus the extracted shifts for the export link.
 - Roster files contain personal names: serve the app over HTTPS and behind your own access control if needed.

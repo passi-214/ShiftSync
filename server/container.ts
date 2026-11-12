@@ -1,7 +1,8 @@
 import { nitroStore } from './infrastructure/nitroStore'
 import { EndTimeEstimator } from './modules/estimation/endTimeEstimator'
 import type { ExportContext } from './modules/calendar/types'
-import { UnpdfExtractor } from './modules/schedule/pdfTextExtractor'
+import { RosterService } from './modules/roster/rosterService'
+import { MultiFormatExtractor } from './modules/schedule/documentTextExtractor'
 import { ShiftService } from './modules/shifts/shiftService'
 import { translate, type Locale } from '../locales'
 
@@ -10,17 +11,19 @@ let instance: ReturnType<typeof build> | undefined
 
 function build() {
   const cfg = useRuntimeConfig()
+  const ttlMs = Number(cfg.sessionTtlHours) * 3_600_000
+  const roster = new RosterService({ extractor: new MultiFormatExtractor(), store: nitroStore('sessions'), ttlMs })
   const shifts = new ShiftService({
-    extractor: new UnpdfExtractor(),
+    roster,
     estimator: new EndTimeEstimator({
       receptionDurationMin: Number(cfg.estimation.receptionDurationMin),
       afterShowDurationMin: Number(cfg.estimation.afterShowDurationMin)
     }),
     results: nitroStore('sessions'),
-    sessionTtlMs: Number(cfg.sessionTtlHours) * 3_600_000
+    sessionTtlMs: ttlMs
   })
   return {
-    shifts,
+    roster, shifts,
     google: {
       enabled: !!(cfg.google.clientId && cfg.google.clientSecret),
       clientId: String(cfg.google.clientId),

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 const { locale, t, tn, tError } = useLocale()
-const { name, file, loading, errorCode, result, submit, loadExport } = useShifts()
+const {
+  name, typoCheck, file, roster, uploading, loading, errorCode, result, include,
+  chooseFile, submit, toggleSpelling, suggest, loadExport
+} = useShifts()
 const route = useRoute()
 
 useHead({ title: computed(() => t('app.title')) })
@@ -19,9 +22,10 @@ const banner = computed(() => {
   return null
 })
 
+const ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const dragging = ref(false)
-const onDrop = (e: DragEvent) => { dragging.value = false; file.value = e.dataTransfer?.files?.[0] ?? file.value }
-const onPick = (e: Event) => { file.value = (e.target as HTMLInputElement).files?.[0] ?? null }
+const onDrop = (e: DragEvent) => { dragging.value = false; chooseFile(e.dataTransfer?.files?.[0] ?? file.value) }
+const onPick = (e: Event) => chooseFile((e.target as HTMLInputElement).files?.[0] ?? null)
 
 const fmtDay = (iso: string) =>
   new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${iso}T12:00:00`))
@@ -35,6 +39,9 @@ function googleFallback() {
   a.href = icsUrl(); a.download = ''; a.click()
   window.open('https://calendar.google.com/calendar/u/0/r/settings/export', '_blank', 'noopener')
 }
+
+const rosterStatus = computed(() => uploading.value ? t('form.rosterReading') : roster.value ? t('form.rosterReady', { count: roster.value.names }) : null)
+const didYouMean = (n: string) => { name.value = n; submit() }
 </script>
 
 <template>
@@ -51,21 +58,41 @@ function googleFallback() {
         class="drop" :class="{ over: dragging, filled: file }"
         @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop"
       >
-        <input type="file" accept="application/pdf" @change="onPick">
+        <input type="file" :accept="ACCEPT" @change="onPick">
         <span class="drop-main">{{ file ? file.name : t('form.drop') }}</span>
         <span class="drop-sub">{{ file ? t('form.dropChange') : t('form.dropSub') }}</span>
       </label>
 
-      <label class="field">
-        <span>{{ t('form.nameLabel') }}</span>
-        <input v-model="name" type="text" autocomplete="name" :placeholder="t('form.namePlaceholder')" required>
+      <p v-if="rosterStatus" class="status" role="status">{{ rosterStatus }}</p>
+
+      <NameCombobox
+        v-model="name" :fetch-suggestions="suggest" :label="t('form.nameLabel')"
+        :placeholder="t('form.namePlaceholder')" :list-label="t('form.suggestions')"
+      />
+
+      <label class="check">
+        <input v-model="typoCheck" type="checkbox">
+        <span><strong>{{ t('form.typoCheck') }}</strong><small>{{ t('form.typoCheckHint') }}</small></span>
       </label>
 
-      <button class="primary" :disabled="loading || !file || name.length < 3">
+      <button class="primary" :disabled="loading || uploading || !roster || name.length < 3">
         {{ loading ? t('form.loading') : t('form.submit') }}
       </button>
       <p v-if="errorCode" class="error" role="alert">{{ tError(errorCode) }}</p>
     </form>
+
+    <details v-if="typoCheck && roster" class="typos">
+      <summary>{{ t('typo.title', { count: roster.typoSuspects.length }) }}</summary>
+      <template v-if="roster.typoSuspects.length">
+        <p>{{ t('typo.hint') }}</p>
+        <ul>
+          <li v-for="s in roster.typoSuspects" :key="s.name">
+            {{ t('typo.item', { name: s.name, count: s.occurrences, means: s.probablyMeans, meansCount: s.probablyMeansOccurrences }) }}
+          </li>
+        </ul>
+      </template>
+      <p v-else>{{ t('typo.none') }}</p>
+    </details>
 
     <p v-if="banner" class="banner" :class="{ bad: !banner.ok }" role="status">{{ banner.text }}</p>
 
@@ -77,13 +104,24 @@ function googleFallback() {
 
       <div v-if="!result.shifts.length" class="empty">
         <p>{{ t('result.none') }}</p>
-        <p v-if="result.availableNames.length">{{ t('result.pickSpelling') }}</p>
-        <div class="names">
-          <button v-for="n in result.availableNames" :key="n" type="button" @click="name = n; submit()">{{ n }}</button>
-        </div>
+        <template v-if="result.similar.length">
+          <p>{{ t('result.didYouMean') }}</p>
+          <div class="names">
+            <button v-for="n in result.similar" :key="n.name" type="button" @click="didYouMean(n.name)">{{ n.name }}</button>
+          </div>
+        </template>
       </div>
 
       <template v-else>
+        <fieldset v-if="result.similar.length" class="similar">
+          <legend>{{ t('similar.title') }}</legend>
+          <p>{{ t('similar.hint') }}</p>
+          <label v-for="n in result.similar" :key="n.name" class="check">
+            <input type="checkbox" :checked="include.includes(n.name)" :disabled="loading || !roster" @change="toggleSpelling(n.name)">
+            <span>{{ t('similar.item', { name: n.name, count: n.occurrences }) }}</span>
+          </label>
+        </fieldset>
+
         <ol class="shifts">
           <li v-for="s in result.shifts" :key="s.id" class="shift">
             <div class="call">
@@ -93,6 +131,7 @@ function googleFallback() {
             <div class="info">
               <strong>{{ fmtDay(s.date) }}</strong>
               <span>{{ s.venueLabel }} · {{ t(`role.${s.role}`) }}</span>
+              <span v-if="s.listedAs" class="listed">{{ t('shift.listedAsShort', { name: s.listedAs }) }}</span>
               <span v-if="s.tags.length || s.notes.length" class="notes">
                 {{ [...s.tags.map((x) => t(`tag.${x}`)), ...s.notes].join(' · ') }}
               </span>

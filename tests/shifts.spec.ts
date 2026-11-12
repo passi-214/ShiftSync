@@ -1,18 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { shiftInstants } from '../server/domain/time'
-import { MemoryStore } from '../server/infrastructure/keyValueStore'
 import { IcsExporter, foldLine } from '../server/modules/calendar/icsExporter'
 import { addShiftsToGoogle, toGoogleEvent } from '../server/modules/calendar/googleCalendar'
-import { EndTimeEstimator } from '../server/modules/estimation/endTimeEstimator'
-import { ShiftService } from '../server/modules/shifts/shiftService'
+import { InputError } from '../server/domain/errors'
 import { SAMPLE } from './fixtures'
+import { makeServices, previewFor } from './helpers'
 
-const mk = () => new ShiftService({
-  extractor: { extract: async () => SAMPLE },
-  estimator: new EndTimeEstimator({ receptionDurationMin: 90, afterShowDurationMin: 90 }),
-  results: new MemoryStore(), sessionTtlMs: 1e6
-})
-const preview = (name: string) => mk().preview(new Uint8Array(), name)
+const preview = async (name: string) => (await previewFor(SAMPLE, name)).result
 const ctx = (locale: 'de' | 'en' = 'de') =>
   ({ person: 'Janette Bäuerle', calendarName: 'T', address: 'Bertoldstraße 46, 79098 Freiburg', timezone: 'Europe/Berlin', locale })
 
@@ -39,22 +33,24 @@ describe('shift service', () => {
     expect(day[0].start).toBe('16:45'); expect(day[0].tags).toContain('break_gastro')
   })
   it('keeps intermission gastro as its own shift (same start as the block) when the person is not in the house list', async () => {
-    const svc = new ShiftService({
-      extractor: { extract: async () => 'Sonntag, 04.10.: GROSSES HAUS ab 16.45 Uhr - Anna Test Pausengastro: Bea Beispiel, Chris Probe' },
-      estimator: new EndTimeEstimator({ receptionDurationMin: 90, afterShowDurationMin: 90 }),
-      results: new MemoryStore(), sessionTtlMs: 1e6
-    })
-    const [s] = (await svc.preview(new Uint8Array(), 'Bea Beispiel')).shifts
+    const { result } = await previewFor('Sonntag, 04.10.: GROSSES HAUS ab 16.45 Uhr - Anna Test Pausengastro: Bea Beispiel, Chris Probe', 'Bea Beispiel')
+    const [s] = result.shifts
     expect(s.role).toBe('break_gastro'); expect(s.start).toBe('16:45'); expect(s.end).toBe('21:15')
   })
-  it('offers name hints when nothing matches', async () => {
-    const r = await preview('Nobody Here')
-    expect(r.shifts).toHaveLength(0); expect(r.availableNames.length).toBeGreaterThan(3)
+  it('offers "did you mean" spellings when nothing matches', async () => {
+    const r = (await previewFor(SAMPLE, 'Janette Bäuerel')).result
+    expect(r.shifts).toHaveLength(0)
+    expect(r.similar.map((x) => x.name)).toContain('Janette Bäuerle')
   })
-  it('can reload a stored result', async () => {
-    const svc = mk(); const r = await svc.preview(new Uint8Array(), 'Elke Rakus')
-    expect((await svc.load(r.id))!.person).toBe('Elke Rakus')
-    expect(await svc.load('nope')).toBeNull()
+  it('can reload a stored result and rejects unknown / expired rosters', async () => {
+    const { shifts, result } = await previewFor(SAMPLE, 'Elke Rakus')
+    expect((await shifts.load(result.id))!.person).toBe('Elke Rakus')
+    expect(await shifts.load('nope')).toBeNull()
+    await expect(shifts.preview('missing', 'Elke Rakus')).rejects.toMatchObject({ code: 'roster_expired' })
+  })
+  it('rejects files that are not a roster', async () => {
+    const { roster } = makeServices('Einkaufsliste: Milch, Eier')
+    await expect(roster.ingest(new Uint8Array())).rejects.toBeInstanceOf(InputError)
   })
 })
 

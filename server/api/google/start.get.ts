@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   if (!c.google.enabled) throw createError({ statusCode: 404 })
 
   const id = String(getQuery(event).id ?? '')
-  if (!(await c.shifts.load(id))) apiError(404, 'export_expired')
+  if (!(await c.shifts.load(id))) apiError('export_expired')
 
   const origin = getRequestURL(event, { xForwardedHost: true, xForwardedProto: true }).origin
   const nonce = randomUUID()
