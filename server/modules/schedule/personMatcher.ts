@@ -1,5 +1,3 @@
-import type { ParsedSchedule } from '../../domain/types'
-
 /** lower-case, no diacritics, ß->ss, hyphens as spaces, letters only. */
 export function normaliseName(s: string): string[] {
   return s
@@ -10,7 +8,7 @@ export function normaliseName(s: string): string[] {
     .split(/\s+/).filter(Boolean)
 }
 
-function levenshtein(a: string, b: string): number {
+export function levenshtein(a: string, b: string): number {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
   for (let j = 1; j <= b.length; j++) dp[0][j] = j
   for (let i = 1; i <= a.length; i++)
@@ -47,15 +45,16 @@ export function matchesPerson(item: string, query: string): boolean {
   return false
 }
 
-/** Distinct, clean-looking names; used as hints when nothing matched. */
-export function listNames(schedule: ParsedSchedule): string[] {
-  const seen = new Map<string, string>()
-  for (const b of schedule.blocks)
-    for (const p of b.people) {
-      const tokens = normaliseName(p.name)
-      if (tokens.length < 2 || tokens.length > 4 || /\bvom\b/i.test(p.name)) continue
-      const key = tokens.join(' ')
-      if (!seen.has(key)) seen.set(key, p.name)
+
+/** Optimal string alignment distance: like Levenshtein, but a swapped neighbour pair ("Pacsal"/"Pascal") costs 1. */
+export function osaDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+  for (let j = 1; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
     }
-  return [...seen.values()].sort((a, b) => a.localeCompare(b, 'de'))
+  return d[a.length][b.length]
 }

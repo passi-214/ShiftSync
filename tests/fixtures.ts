@@ -18,3 +18,16 @@ Donnerstag, 15.10.:
 WELTRAUM ab 09.15 Uhr - Janette Bäuerle, Ida von Bischopinck
 WELTRAUM ab 13.15 Uhr - Janette Bäuerle, Marietta Schantz
 Letzter Abgabetermin für Wunschtermine November ist der 16. Oktober.`
+
+// Names with a typo ("Pacsal"), an inconsistent spelling ("Gina Huber") and a comma lost in extraction.
+export const TYPO_SAMPLE = `Sonntag, 04.10.:
+GROSSES HAUS ab 16.45 Uhr - Pascal Nowarra, Anna Berger, Felix Rath, Gina-Denise Huber
+Montag, 05.10.:
+GROSSES HAUS ab 16.45 Uhr - Pascal Nowarra, Anna Berger, Gina-Denise Huber, Lilli Deimann
+Dienstag, 06.10.:
+GROSSES HAUS ab 16.45 Uhr - Pacsal Nowarra, Anna Berger, Constanze Graf
+Gina-Denise Huber, Liliana Deimann
+Mittwoch, 07.10.:
+KLEINES HAUS ab 19.00 Uhr - Constanze Graf, Gina Huber, Felix Rath
+Donnerstag, 08.10.:
+GROSSES HAUS ab 16.45 Uhr - Pascal Nowarra, Constanze Graf, Felix Rath, Liliana Deimann`
