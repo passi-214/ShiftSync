@@ -5,6 +5,12 @@ import { matchesPerson, normaliseName, osaDistance } from './personMatcher'
 
 const key = (name: string) => normaliseName(name).join(' ')
 const wsTokens = (name: string) => name.split(/\s+/).filter(Boolean)
+/** Name particles: "Zita Von Wallenberg Pachaly" is one person, not two glued names. */
+const PARTICLE = /^(von|van|de|der|den|zu|zur|zum|la|le|di|da|del)$/i
+const looksClean = (name: string) => {
+  const t = wsTokens(name)
+  return t.length >= 2 && (t.length <= 3 || (t.length <= 4 && t.some((x) => PARTICLE.test(x))))
+}
 
 /**
  * Names the PDF/Word export glued together because a comma was lost
@@ -17,7 +23,7 @@ function segment(tokens: string[], clean: Map<string, string>): string[] | null 
     if (i === tokens.length) return []
     if (memo.has(i)) return memo.get(i)!
     let result: string[] | null = null
-    for (const len of [3, 2]) {
+    for (const len of [4, 3, 2]) {
       const raw = tokens.slice(i, i + len).join(' ')
       const known = i + len <= tokens.length ? clean.get(key(raw)) : undefined
       if (!known) continue
@@ -32,7 +38,6 @@ function segment(tokens: string[], clean: Map<string, string>): string[] | null 
 
 export function buildNameIndex(schedule: ParsedSchedule): NameStat[] {
   const raw = schedule.blocks.flatMap((b) => b.people.map((p) => p.name))
-  const looksClean = (n: string) => { const t = wsTokens(n).length; return t >= 2 && t <= 3 }
   const clean = new Map<string, string>()
   for (const n of raw) if (looksClean(n) && !clean.has(key(n))) clean.set(key(n), n)
 

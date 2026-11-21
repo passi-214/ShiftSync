@@ -95,11 +95,13 @@ export class ShiftService {
           }
         }
 
-        // Briefing + performance call in the same house block (within 90 min) => one shift from the earliest
-        // call. Blocks further apart (two Weltraum shows hours apart) stay separate shifts.
-        const near = b.role === 'floor' && out.find((o) =>
-          o.draft.date === b.date && o.draft.venue === b.venue && o.draft.role === 'floor' &&
-          Math.abs(toMinutes(o.draft.start) - toMinutes(start)) <= 90)
+        // Same person twice in the same block/role (a roster typo) => one shift. For house shifts, a briefing +
+        // performance call (≤ 90 min apart) also becomes one shift from the earliest call; blocks further apart
+        // (two Weltraum shows hours apart) stay separate shifts.
+        const window = b.role === 'floor' ? 90 : 0
+        const near = out.find((o) =>
+          o.draft.date === b.date && o.draft.venue === b.venue && o.draft.role === b.role &&
+          Math.abs(toMinutes(o.draft.start) - toMinutes(start)) <= window)
         if (near) {
           if (toMinutes(start) < toMinutes(near.draft.start)) near.draft.start = start
           if (toMinutes(start) > toMinutes(near.draft.durationFrom)) near.draft.durationFrom = start

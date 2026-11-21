@@ -2,7 +2,7 @@ import type de from './de'
 
 const en: Record<keyof typeof de, string> = {
   'lang.label': 'Language',
-  'app.title': 'Shift Sync',
+  'app.title': 'Shifts to calendar',
   'app.subtitle': 'Upload the monthly foyer roster, enter your name, and add your shifts to any calendar app.',
 
   'form.drop': 'Drop the roster (PDF or Word) here',

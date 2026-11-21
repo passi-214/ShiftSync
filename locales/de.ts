@@ -2,7 +2,7 @@
 // translation is a compile error. Used by the UI *and* by the backend (calendar export text).
 const de = {
   'lang.label': 'Sprache',
-  'app.title': 'Shift Sync',
+  'app.title': 'Dienste in den Kalender',
   'app.subtitle': 'Lade den monatlichen Foyer-Arbeitsplan hoch, gib deinen Namen ein und übernimm deine Dienste in jede Kalender-App.',
 
   'form.drop': 'Arbeitsplan (PDF oder Word) hier ablegen',

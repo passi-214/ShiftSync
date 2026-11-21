@@ -1,6 +1,6 @@
 export type VenueId =
   | 'GROSSES_HAUS' | 'KLEINES_HAUS' | 'WELTRAUM' | 'FOYER_GROSSES_HAUS'
-  | 'STEIN_FOYER' | 'THEATER_BAR' | 'KONZERTHAUS'
+  | 'STEIN_FOYER' | 'WINTERER_FOYER' | 'THEATER_BAR' | 'KANTINE' | 'KONZERTHAUS'
 
 export type RoleId =
   | 'floor'                 // Foyer / house staff, the main block of a venue
